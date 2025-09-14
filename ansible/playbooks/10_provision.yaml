@@ -19,10 +19,10 @@
           location: nbg1
           state: present
       register: server
-    - name: Create worker node
+    - name: Create worker-init node
       hcloud_server:
           api_token: "{{ hcloud_token }}"
-          name: worker-node
+          name: worker-init-node
           server_type: cx22
           image: ubuntu-24.04
           location: nbg1

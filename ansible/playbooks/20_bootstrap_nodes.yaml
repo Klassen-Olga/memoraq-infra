@@ -1,0 +1,10 @@
+- name: Bootstrap control plane
+  hosts: cp:worker
+  become: yes
+  vars:
+    kube_version_pin: "1.31.1-1.1"
+  roles:
+    - commons
+    - cp-init-init
+    - worker-init
+    - worker-join
