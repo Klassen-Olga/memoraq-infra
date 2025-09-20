@@ -1,3 +1,18 @@
+---
+- name: Add /etc/hosts alias for k8scp
+  lineinfile:
+    path: /etc/hosts
+    line: "{{ ansible_default_ipv4.address }} k8scp"
+    state: present
+    create: yes
+
+- name: Add /etc/hosts alias for cp
+  lineinfile:
+    path: /etc/hosts
+    line: "{{ ansible_default_ipv4.address }} cp"
+    state: present
+    create: yes
+
 - name: Upload kubeadm-config.yaml from local to control-plane
   copy:
     src: ../../../kubeadm-config.yaml
@@ -48,13 +63,41 @@
     crictl config --set runtime-endpoint=unix:///run/containerd/containerd.sock --set image-endpoint=unix:///run/containerd/containerd.sock
   become: yes
 
-
 - name: Deploy Cilium as mem
   command: kubectl apply -f /home/mem/cilium-cni.yaml
   environment:
     KUBECONFIG: /home/mem/.kube/config
   become: yes
   become_user: mem
+
+- name: Download Helm tarball
+  get_url:
+    url: https://get.helm.sh/helm-{{ helm_version }}-linux-amd64.tar.gz
+    dest: /tmp/helm-{{ helm_version }}-linux-amd64.tar.gz
+    mode: '0644'
+
+- name: Extract Helm archive
+  unarchive:
+    src: /tmp/helm-{{ helm_version }}-linux-amd64.tar.gz
+    dest: /tmp
+    remote_src: yes
+
+- name: Install Helm binary
+  copy:
+    src: /tmp/linux-amd64/helm
+    dest: /usr/local/bin/helm
+    mode: '0755'
+  become: yes
+
+- name: Export cp IP
+  shell: >
+    kubeadm token create --print-join-command
+  register: join_command
+  become: yes
+
+- name: Set join command fact
+  set_fact:
+    join_command: "{{ join_command.stdout_lines[0] }}"
 
 
 

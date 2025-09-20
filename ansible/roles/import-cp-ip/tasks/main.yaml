@@ -1,0 +1,14 @@
+---
+- name: Add /etc/hosts alias for k8scp
+  lineinfile:
+    path: /etc/hosts
+    line: "{{ hostvars['cp']['cp_ip'] }} k8scp"
+    state: present
+    create: yes
+
+- name: Add /etc/hosts alias for cp
+  lineinfile:
+    path: /etc/hosts
+    line: "{{ hostvars['cp']['cp_ip'] }} cp"
+    state: present
+    create: yes

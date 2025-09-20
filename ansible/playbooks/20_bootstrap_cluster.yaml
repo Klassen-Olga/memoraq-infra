@@ -11,6 +11,8 @@
 - name: Bootstrap control plane
   hosts: cp
   remote_user: mem
+  vars:
+    helm_version: "v3.15.2"
   roles:
     - cp-init
 
@@ -31,4 +33,16 @@
   remote_user: mem
   roles:
     - join-worker
+
+- name: Export cp ip
+  hosts: cp
+  remote_user: mem
+  roles:
+    - export-cp-ip
+
+- name: Import cp ip
+  hosts: worker
+  remote_user: mem
+  roles:
+    - import-cp-ip
 
