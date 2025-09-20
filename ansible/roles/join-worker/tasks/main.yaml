@@ -1,0 +1,4 @@
+---
+- name: Join worker
+  shell: >
+    "{{ hostvars['cp']['join_command'] }}"

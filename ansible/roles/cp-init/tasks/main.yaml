@@ -1,0 +1,61 @@
+- name: Upload kubeadm-config.yaml from local to control-plane
+  copy:
+    src: ../../../kubeadm-config.yaml
+    dest: /home/root/kubeadm-config.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  become: yes
+
+- name: Initialize control-plane
+  shell: >
+    kubeadm init
+    --config=/home/root/kubeadm-config.yaml
+    --upload-certs
+    --node-name=cp | tee /home/root/kubeadm-init.out
+  args:
+    creates: /etc/kubernetes/admin.conf
+  become: yes
+
+- name: Create kube folder for mem
+  file:
+    path: /home/mem/.kube
+    state: directory
+    owner: mem
+    group: mem
+    mode: "0755"
+
+- name: Copy admin.conf to mem’s kubeconfig
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/mem/.kube/config
+    owner: mem
+    group: mem
+    mode: "0644"
+    remote_src: yes
+  become: yes
+
+- name: Copy cilium-cni.yaml to mem home
+  copy:
+    src: ../../../cilium-cni.yaml
+    dest: /home/mem/cilium-cni.yaml
+    owner: mem
+    group: mem
+    mode: "0644"
+
+- name: Set containerd as runtime for crictl
+  shell: >
+    crictl config --set runtime-endpoint=unix:///run/containerd/containerd.sock --set image-endpoint=unix:///run/containerd/containerd.sock
+  become: yes
+
+
+- name: Deploy Cilium as mem
+  command: kubectl apply -f /home/mem/cilium-cni.yaml
+  environment:
+    KUBECONFIG: /home/mem/.kube/config
+  become: yes
+  become_user: mem
+
+
+
+
