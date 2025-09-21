@@ -5,26 +5,26 @@
   #  skip ssh
   connection: local
   # skip os/package facts
-  gather_facts: False
+  gather_facts: false
   vars:
-    hcloud_token: {{API_TOKEN}}
+    hcloud_token: { { API_TOKEN: !!null "" }: !!null "" }
   tasks:
     - name: Create control pane
       hcloud_server:
-          api_token: "{{ hcloud_token }}"
-          name: control-pane
-          server_type: cx22
-          image: ubuntu-24.04
-          # Nuernberg datacenter
-          location: nbg1
-          state: present
+        api_token: "{{ hcloud_token }}"
+        name: control-pane
+        server_type: cx22
+        image: ubuntu-24.04
+        # Nuernberg datacenter
+        location: nbg1
+        state: present
       register: server
     - name: Create worker-init node
       hcloud_server:
-          api_token: "{{ hcloud_token }}"
-          name: worker-init-node
-          server_type: cx22
-          image: ubuntu-24.04
-          location: nbg1
-          state: present
+        api_token: "{{ hcloud_token }}"
+        name: worker-init-node
+        server_type: cx22
+        image: ubuntu-24.04
+        location: nbg1
+        state: present
       register: server

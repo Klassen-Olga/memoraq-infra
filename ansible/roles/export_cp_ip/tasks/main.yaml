@@ -1,4 +1,4 @@
 ---
 - name: Set cp IP
-  set_fact:
+  ansible.builtin.set_fact:
     cp_ip: "{{ ansible_default_ipv4.address }}"
