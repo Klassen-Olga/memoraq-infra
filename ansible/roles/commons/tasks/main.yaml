@@ -1,0 +1,140 @@
+---
+- name: Ensure /etc/needrestart exists
+  ansible.builtin.file:
+    path: /etc/needrestart
+    state: directory
+    mode: "0755"
+
+- name: Auto-restart services via needrestart
+  ansible.builtin.lineinfile:
+    path: /etc/needrestart/needrestart.conf
+    line: "$nrconf{restart} = 'a';"
+    create: true
+
+- name: Apt update & upgrade
+  ansible.builtin.apt:
+    update_cache: true
+    upgrade: dist
+
+- name: Install base packages
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - software-properties-common
+      - ca-certificates
+      - socat
+    state: present
+    update_cache: true
+
+- name: Disable swap immediately
+  ansible.builtin.command: swapoff -a
+  changed_when: false
+
+- name: Ensure kernel modules are loaded
+  ansible.builtin.command: modprobe {{ item }}
+  args:
+    warn: false
+  changed_when: false
+  loop:
+    - overlay
+    - br_netfilter
+
+- name: Persist kernel modules across reboots
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k8s.conf
+    content: |
+      overlay
+      br_netfilter
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Set required sysctl values (persisted)
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/k8s.conf
+    content: |
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.bridge.bridge-nf-call-iptables  = 1
+      net.ipv4.ip_forward = 1
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Apply changes to kernel
+  ansible.builtin.command: sysctl --system
+- name: Create keyrings dir
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Add Docker APT GPG key
+  ansible.builtin.shell: |
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor > /etc/apt/keyrings/docker.gpg
+  args:
+    creates: "/etc/apt/keyrings/docker.gpg"
+
+- name: Add Docker APT repo using GPG from previous step
+  ansible.builtin.apt_repository:
+    repo: "deb [arch={{ ansible_architecture | default('amd64') }} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_lsb.codename
+      }} stable"
+    filename: docker
+    state: present
+
+- name: Add Kubernetes APT GPG key
+  ansible.builtin.shell: |
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key | gpg --dearmor > /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  args:
+    creates: "/etc/apt/keyrings/kubernetes-apt-keyring.gpg"
+
+- name: Add Kubernetes APT repo
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /"
+    filename: kubernetes
+    state: present
+
+- name: Install containerd
+  ansible.builtin.apt:
+    name: containerd.io
+    state: present
+    update_cache: true
+  notify: Restart containerd
+
+- name: Generate default containerd config if missing
+  ansible.builtin.command: bash -lc "test -f /etc/containerd/config.toml || (containerd config default | tee /etc/containerd/config.toml)"
+  notify: Restart containerd
+
+- name: Ensure SystemdCgroup = true in containerd config
+  ansible.builtin.replace:
+    path: /etc/containerd/config.toml
+    regexp: "^(\\s*SystemdCgroup\\s*=\\s*)false"
+    replace: "\\1true"
+  notify: Restart containerd
+
+- name: Install Kubernetes tools at pinned versions
+  ansible.builtin.apt:
+    name:
+      - "kubelet={{ kube_version_pin }}"
+      - "kubeadm={{ kube_version_pin }}"
+      - "kubectl={{ kube_version_pin }}"
+    state: present
+    update_cache: true
+
+- name: Hold Kubernetes packages
+  ansible.builtin.apt:
+    name:
+      - kubelet
+      - kubeadm
+      - kubectl
+    state: hold
+
+- name: Add /etc/hosts alias for cp-init
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ ansible_default_ipv4.address }} cp-init"
+    state: present
+
+- name: Restart containerd
+  ansible.builtin.service:
+    name: containerd
+    state: restarted

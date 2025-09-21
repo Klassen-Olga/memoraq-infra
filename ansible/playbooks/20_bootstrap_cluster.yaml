@@ -1,0 +1,48 @@
+---
+- name: Prepare nodes for bootstrap
+  hosts: all
+  # connect as any user and become root
+  become: true
+  remote_user: mem
+  vars:
+    kube_version_pin: "1.31.1-1.1"
+  roles:
+    - commons
+
+- name: Bootstrap control plane
+  hosts: cp
+  remote_user: mem
+  vars:
+    helm_version: "v3.15.2"
+  roles:
+    - cp_init
+
+- name: Bootstrap worker node
+  hosts: worker
+  remote_user: mem
+  roles:
+    - worker_init
+
+- name: Generate join tokens
+  hosts: cp
+  remote_user: mem
+  roles:
+    - generate_join_token
+
+- name: Join worker node to cluster
+  hosts: worker
+  remote_user: mem
+  roles:
+    - join_worker
+
+- name: Export cp ip
+  hosts: cp
+  remote_user: mem
+  roles:
+    - export_cp_ip
+
+- name: Import cp ip
+  hosts: worker
+  remote_user: mem
+  roles:
+    - import_cp_ip

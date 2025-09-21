@@ -1,0 +1,18 @@
+---
+- name: Add /etc/hosts alias for k8scp
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ hostvars['cp']['cp_ip'] }} k8scp"
+    owner: root
+    group: root
+    state: present
+    create: true
+
+- name: Add /etc/hosts alias for cp
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ hostvars['cp']['cp_ip'] }} cp"
+    owner: root
+    group: root
+    state: present
+    create: true

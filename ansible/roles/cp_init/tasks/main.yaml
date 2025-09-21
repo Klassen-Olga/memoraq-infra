@@ -1,0 +1,100 @@
+---
+- name: Add /etc/hosts alias for k8scp
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ ansible_default_ipv4.address }} k8scp"
+    state: present
+    create: true
+
+- name: Add /etc/hosts alias for cp
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ ansible_default_ipv4.address }} cp"
+    state: present
+    create: true
+
+- name: Upload kubeadm-config.yaml from local to control-plane
+  ansible.builtin.copy:
+    src: ../../../k8s/configs/kubeadm-config.yaml
+    dest: /home/root/kubeadm-config.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+
+- name: Initialize control-plane
+  ansible.builtin.shell: >
+    kubeadm init
+    --config=/home/root/kubeadm-config.yaml
+    --upload-certs
+    --node-name=cp | tee /home/root/kubeadm-init.out
+  args:
+    creates: /etc/kubernetes/admin.conf
+  become: true
+
+- name: Create kube folder for mem
+  ansible.builtin.file:
+    path: /home/mem/.kube
+    state: directory
+    owner: mem
+    group: mem
+    mode: "0755"
+
+- name: Copy admin.conf to mem’s kubeconfig
+  ansible.builtin.copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/mem/.kube/config
+    owner: mem
+    group: mem
+    mode: "0644"
+    remote_src: true
+  become: true
+
+- name: Copy cilium-cni.yaml to mem home
+  ansible.builtin.copy:
+    src: ../../../k8s/configs/cilium-cni.yaml
+    dest: /home/mem/cilium-cni.yaml
+    owner: mem
+    group: mem
+    mode: "0644"
+
+- name: Set containerd as runtime for crictl
+  ansible.builtin.shell: >
+    crictl config --set runtime-endpoint=unix:///run/containerd/containerd.sock --set image-endpoint=unix:///run/containerd/containerd.sock
+  become: true
+
+- name: Deploy Cilium as mem
+  ansible.builtin.command: kubectl apply -f /home/mem/cilium-cni.yaml
+  environment:
+    KUBECONFIG: /home/mem/.kube/config
+  become: true
+  become_user: mem
+
+- name: Download Helm tarball
+  ansible.builtin.get_url:
+    url: https://get.helm.sh/helm-{{ helm_version }}-linux-amd64.tar.gz
+    dest: /tmp/helm-{{ helm_version }}-linux-amd64.tar.gz
+    mode: "0644"
+
+- name: Extract Helm archive
+  ansible.builtin.unarchive:
+    src: /tmp/helm-{{ helm_version }}-linux-amd64.tar.gz
+    dest: /tmp
+    remote_src: true
+
+- name: Install Helm binary
+  ansible.builtin.copy:
+    src: /tmp/linux-amd64/helm
+    dest: /usr/local/bin/helm
+    mode: "0755"
+  become: true
+
+- name: Export cp IP
+  ansible.builtin.shell: >
+    kubeadm token create --print-join-command
+  register: join_command
+  become: true
+
+- name: Set join command fact
+  ansible.builtin.set_fact:
+    join_command: "{{ join_command.stdout_lines[0] }}"
