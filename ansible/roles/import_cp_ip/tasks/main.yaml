@@ -3,6 +3,8 @@
   ansible.builtin.lineinfile:
     path: /etc/hosts
     line: "{{ hostvars['cp']['cp_ip'] }} k8scp"
+    owner: root
+    group: root
     state: present
     create: true
 
@@ -10,5 +12,7 @@
   ansible.builtin.lineinfile:
     path: /etc/hosts
     line: "{{ hostvars['cp']['cp_ip'] }} cp"
+    owner: root
+    group: root
     state: present
     create: true
